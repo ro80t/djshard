@@ -11,7 +11,7 @@ Thanks for helping out. Bug reports and pull requests are welcome at [ro80t/djsh
 
 ```sh
 bun install
-bun run skills   # restore the agent skills pinned in skills-lock.json (optional)
+bun run skills   # reinstall the agent skills pinned in skills-lock.json (optional; they are committed)
 ```
 
 ## Layout
@@ -57,7 +57,7 @@ Go code is formatted with `gofmt`.
 
 ## Agent skills
 
-The repo pins skills for coding agents (Claude Code, Codex, ...) with the [skills CLI](https://github.com/vercel-labs/skills). `skills-lock.json` is committed. The installed copies in `.claude/skills` and `.agents/skills` are gitignored.
+The repo pins skills for coding agents (Claude Code, Codex, ...) with the [skills CLI](https://github.com/vercel-labs/skills). Both `skills-lock.json` and the installed copies in `.claude/skills` and `.agents/skills` are committed, so the skills work right after cloning.
 
 | Source                                                        | Skills                                                            |
 | ------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -66,7 +66,7 @@ The repo pins skills for coding agents (Claude Code, Codex, ...) with the [skill
 
 ```sh
 bun run skills                          # install what skills-lock.json pins
-bunx skills add <owner/repo> --skill '*' # add a skill source (updates skills-lock.json)
+bunx skills add <owner/repo> --skill "*" --copy # add a skill source (updates skills-lock.json)
 bunx skills update -p                   # update project skills
 bunx skills remove <name>               # remove one
 ```

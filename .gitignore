@@ -32,7 +32,3 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
-
-# agent skills (restored from skills-lock.json via `bun run skills`)
-.claude/skills
-.agents/skills

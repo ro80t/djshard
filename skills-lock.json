@@ -5,43 +5,50 @@
       "source": "ro80t/github-skills",
       "sourceType": "github",
       "skillPath": "skills/auto-commit-and-push/SKILL.md",
-      "computedHash": "3dbd1d2c65cb077c244adec6a9df9c6ec6e4938ecd04fb28139111ab997bb726"
+      "computedHash": "3dbd1d2c65cb077c244adec6a9df9c6ec6e4938ecd04fb28139111ab997bb726",
+      "installMode": "copy"
     },
     "fix-coderabbit": {
       "source": "ro80t/github-skills",
       "sourceType": "github",
       "skillPath": "skills/fix-coderabbit/SKILL.md",
-      "computedHash": "e4ebcd083e9db6361bfebb24fd8ef25e19715e42242e0f0e8b50613b3453c5f4"
+      "computedHash": "e4ebcd083e9db6361bfebb24fd8ef25e19715e42242e0f0e8b50613b3453c5f4",
+      "installMode": "copy"
     },
     "git-policy": {
       "source": "ro80t/github-skills",
       "sourceType": "github",
       "skillPath": "skills/git-policy/SKILL.md",
-      "computedHash": "1309f272da0e4fdd008ba638c4e8d7c0d89b20ac3f68d2bd6b78aecf0311f897"
+      "computedHash": "1309f272da0e4fdd008ba638c4e8d7c0d89b20ac3f68d2bd6b78aecf0311f897",
+      "installMode": "copy"
     },
     "hush": {
       "source": "ro80t/hush",
       "sourceType": "github",
       "skillPath": "skills/hush/SKILL.md",
-      "computedHash": "a4a338d95ecce95775fa2ce73f622adf3cdc435c7dd10ba346c3b81b9f00abd9"
+      "computedHash": "a4a338d95ecce95775fa2ce73f622adf3cdc435c7dd10ba346c3b81b9f00abd9",
+      "installMode": "copy"
     },
     "hush-fix": {
       "source": "ro80t/hush",
       "sourceType": "github",
       "skillPath": "skills/hush-fix/SKILL.md",
-      "computedHash": "861d72198869e432cc0876a43e0accc3b2735e2ab91c7f7fc86594fa9bd490ec"
+      "computedHash": "861d72198869e432cc0876a43e0accc3b2735e2ab91c7f7fc86594fa9bd490ec",
+      "installMode": "copy"
     },
     "hush-review": {
       "source": "ro80t/hush",
       "sourceType": "github",
       "skillPath": "skills/hush-review/SKILL.md",
-      "computedHash": "55faabbd5726b6e6b3968bb798e20fe88dcb26c362c42bb0ab412165b759b75f"
+      "computedHash": "55faabbd5726b6e6b3968bb798e20fe88dcb26c362c42bb0ab412165b759b75f",
+      "installMode": "copy"
     },
     "open-pr": {
       "source": "ro80t/github-skills",
       "sourceType": "github",
       "skillPath": "skills/open-pr/SKILL.md",
-      "computedHash": "fe1f9abb48ed30786a5e577a36ae1a7cf7e0ded60082ad632c4adfac0b11e246"
+      "computedHash": "fe1f9abb48ed30786a5e577a36ae1a7cf7e0ded60082ad632c4adfac0b11e246",
+      "installMode": "copy"
     }
   }
 }
