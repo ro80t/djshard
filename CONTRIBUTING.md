@@ -62,9 +62,9 @@ Releases use [changesets](https://github.com/changesets/changesets). The library
 
 1. Each user-facing PR adds a changeset with `bunx changeset`.
 2. When changesets land on `main`, the Release workflow opens or updates a `chore: release` PR that bumps the version and the changelog.
-3. Merging that PR publishes the package to npm with trusted publishing and pushes `ghcr.io/ro80t/djshard-operator:<version>` and `:latest`.
+3. Merging that PR publishes the package to npm with trusted publishing, tags the commit `vX.Y.Z` with a GitHub release, and pushes `ghcr.io/ro80t/djshard-operator:<version>` and `:latest`.
 
-Publishing is off until the repo variable `NPM_TRUSTED_PUBLISHING` is `true`. Trusted publishing can't create a new package, so publish the first version by hand, register `release.yml` as the trusted publisher on npmjs.com, and then set the variable.
+Publishing needs no npm token: npmjs.com lists `ro80t/djshard`'s `release.yml` as the trusted publisher for `djshard`.
 
 ## Automation
 

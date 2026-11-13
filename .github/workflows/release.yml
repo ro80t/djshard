@@ -1,12 +1,9 @@
 name: Release
 
 # Changesets flow: a push to main with pending changesets opens or updates a "chore: release"
-# PR. Merging that PR publishes the new version to npm (trusted publishing, no token) and
-# pushes the matching operator image to ghcr.
-#
-# Publishing stays off until the repo variable NPM_TRUSTED_PUBLISHING is "true". Trusted
-# publishing can't create a package, so publish the first version by hand, register this
-# workflow as the trusted publisher on npmjs.com, then set the variable.
+# PR. Merging that PR publishes the new version to npm (trusted publishing, no token), pushes
+# a vX.Y.Z tag with a GitHub release, and pushes the matching operator image to ghcr.
+# npmjs.com must list this workflow (release.yml) as the package's trusted publisher.
 
 on:
   push:
@@ -44,7 +41,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version-script: bunx changeset version
-          publish-script: ${{ vars.NPM_TRUSTED_PUBLISHING == 'true' && 'bun run release' || '' }}
+          publish-script: bun run release
           pr-title: "chore: release"
           commit-message: "chore: release"
 
