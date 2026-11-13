@@ -53,7 +53,27 @@ Go code is formatted with `gofmt`.
 - Branch from `main`. Don't push to `main` directly.
 - Keep each change focused, and add a test when you change behavior.
 - Make sure `bun run ci` and `go test ./...` pass.
+- Add a changeset (`bunx changeset`) when the change affects users of the library or the operator.
 - Describe what changed, why, and how you verified it.
+
+## Releases
+
+Releases use [changesets](https://github.com/changesets/changesets). The library and the operator image share one version.
+
+1. Each user-facing PR adds a changeset with `bunx changeset`.
+2. When changesets land on `main`, the Release workflow opens or updates a `chore: release` PR that bumps the version and the changelog.
+3. Merging that PR publishes the package to npm with trusted publishing and pushes `ghcr.io/ro80t/djshard-operator:<version>` and `:latest`.
+
+Publishing is off until the repo variable `NPM_TRUSTED_PUBLISHING` is `true`. Trusted publishing can't create a new package, so publish the first version by hand, register `release.yml` as the trusted publisher on npmjs.com, and then set the variable.
+
+## Automation
+
+| Workflow / config          | Does                                                                                                     |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `.github/workflows/ci.yml` | Library checks (lint, format, types, tests, build) and operator checks (gofmt, vet, tests, image build). |
+| `release.yml`              | Changesets release PR, npm publish, operator image push.                                                 |
+| `skills-update.yml`        | Weekly `bunx skills update`; opens a PR when a pinned skill changed upstream.                            |
+| `.github/dependabot.yml`   | Bun, Go modules (Kubernetes deps grouped), the operator's Docker base images, and GitHub Actions.        |
 
 ## Agent skills
 

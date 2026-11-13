@@ -1,0 +1,89 @@
+name: Release
+
+# Changesets flow: a push to main with pending changesets opens or updates a "chore: release"
+# PR. Merging that PR publishes the new version to npm (trusted publishing, no token) and
+# pushes the matching operator image to ghcr.
+#
+# Publishing stays off until the repo variable NPM_TRUSTED_PUBLISHING is "true". Trusted
+# publishing can't create a package, so publish the first version by hand, register this
+# workflow as the trusted publisher on npmjs.com, then set the variable.
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  changesets:
+    name: Changesets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      packages: ${{ steps.changesets.outputs.publishedPackages }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/workflows/setup
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm
+        # Trusted publishing needs npm 11.5.1 or later.
+        run: npm i -g npm@11.18.0
+
+      - id: changesets
+        uses: changesets/action@v2
+        with:
+          version: bunx changeset version
+          publish: ${{ vars.NPM_TRUSTED_PUBLISHING == 'true' && 'bun run release' || '' }}
+          title: "chore: release"
+          commit: "chore: release"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  operator-image:
+    name: Operator image
+    needs: changesets
+    if: needs.changesets.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/djshard-operator
+          tags: |
+            type=semver,pattern={{version}},value=v${{ fromJSON(needs.changesets.outputs.packages)[0].version }}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: operator
+          # The Dockerfile cross-compiles, so no QEMU is needed.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=operator

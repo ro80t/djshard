@@ -1,0 +1,22 @@
+name: Setup
+
+description: Install Bun and the locked dependencies (run after actions/checkout)
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: "1.4.4"
+
+    - name: Cache Bun install
+      uses: actions/cache@v6
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-install-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-install-
+
+    - name: Install deps
+      shell: bash
+      run: bun ci

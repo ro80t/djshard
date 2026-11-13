@@ -34,9 +34,11 @@
     "test": "bun test",
     "ci": "bun run lint && bun run fmt:check && bun run typecheck && bun test && bun run build",
     "prepublishOnly": "bun run build",
-    "skills": "skills experimental_install"
+    "skills": "skills experimental_install",
+    "release": "bun run build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@types/bun": "latest",
     "oxfmt": "^0.78.0",
     "oxlint": "^1",

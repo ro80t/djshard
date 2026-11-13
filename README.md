@@ -118,7 +118,7 @@ For each `ShardCluster`, the operator:
 
 Your `manager.ts` is the same as in single-machine mode, because `ClusterManager` picks up the `DJSHARD_*` variables automatically.
 
-The operator image is published to `ghcr.io/ro80t/djshard-operator` (`latest` from `main`, plus a tag per `v*` release). To run your own build, build `operator/Dockerfile` and change the image in `operator/config/operator.yaml`.
+The operator image is published to `ghcr.io/ro80t/djshard-operator` with every release, tagged with the release version and `latest`. To run your own build, build `operator/Dockerfile` and change the image in `operator/config/operator.yaml`.
 
 ## Limitations
 

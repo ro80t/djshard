@@ -1,0 +1,56 @@
+name: Skills update
+
+# Keeps the agent skills pinned in skills-lock.json (installed copies in .claude/skills and
+# .agents/skills) in sync with upstream. Dependabot doesn't know about them. Opens a PR only
+# when `bunx skills update` actually changed something.
+
+on:
+  schedule:
+    - cron: "0 4 * * 1" # Mondays 04:00 UTC
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}
+
+jobs:
+  skills-update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/workflows/setup
+
+      - name: Check for an already-open update PR
+        id: existing-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          url=$(gh pr list --state open --limit 1000 --json headRefName,url \
+            --jq '[.[] | select(.headRefName | startswith("chore/skills-update-"))][0].url // ""')
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          [ -z "$url" ] || echo "Skipping: an update PR is already open: $url"
+
+      - name: Update skills
+        if: steps.existing-pr.outputs.url == ''
+        run: bunx skills update -p -y
+
+      - name: Open a PR if anything changed
+        if: steps.existing-pr.outputs.url == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: chore/skills-update-${{ github.run_id }}
+        run: |
+          if [ -z "$(git status --porcelain -- skills-lock.json .claude/skills .agents/skills)" ]; then
+            echo "Skills are up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add skills-lock.json .claude/skills .agents/skills
+          git commit -m "chore: update agent skills"
+          git push origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" --title "chore: update agent skills" \
+            --body "Automated \`bunx skills update\` run. Review the skill diffs before merging: skills run with full agent permissions."
