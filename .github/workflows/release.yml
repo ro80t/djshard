@@ -24,7 +24,7 @@ jobs:
       id-token: write
     outputs:
       published: ${{ steps.changesets.outputs.published }}
-      packages: ${{ steps.changesets.outputs.publishedPackages }}
+      packages: ${{ steps.changesets.outputs.published-packages }}
     steps:
       - uses: actions/checkout@v7
 
@@ -42,12 +42,11 @@ jobs:
       - id: changesets
         uses: changesets/action@v2
         with:
-          version: bunx changeset version
-          publish: ${{ vars.NPM_TRUSTED_PUBLISHING == 'true' && 'bun run release' || '' }}
-          title: "chore: release"
-          commit: "chore: release"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version-script: bunx changeset version
+          publish-script: ${{ vars.NPM_TRUSTED_PUBLISHING == 'true' && 'bun run release' || '' }}
+          pr-title: "chore: release"
+          commit-message: "chore: release"
 
   operator-image:
     name: Operator image
