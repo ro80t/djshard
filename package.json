@@ -2,6 +2,10 @@
   "name": "djshard",
   "version": "0.1.0",
   "description": "Clustered + cross-host sharding for Discord bots on Bun, with a Kubernetes operator",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ro80t/djshard.git"
+  },
   "files": [
     "dist"
   ],
@@ -29,12 +33,14 @@
     "typecheck": "bun check",
     "test": "bun test",
     "ci": "bun run lint && bun run fmt:check && bun run typecheck && bun test && bun run build",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "skills": "skills experimental_install"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "oxfmt": "^0.78.0",
     "oxlint": "^1",
+    "skills": "^1.8.1",
     "tsdown": "^0.23.7",
     "typescript": "^7.0.2"
   },

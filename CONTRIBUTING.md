@@ -1,0 +1,74 @@
+# Contributing to djshard
+
+Thanks for helping out. Bug reports and pull requests are welcome at [ro80t/djshard](https://github.com/ro80t/djshard).
+
+## Requirements
+
+- [Bun](https://bun.sh) 1.2 or later
+- [Go](https://go.dev) 1.26 or later (only for the operator)
+
+## Setup
+
+```sh
+bun install
+bun run skills   # restore the agent skills pinned in skills-lock.json (optional)
+```
+
+## Layout
+
+| Path             | What                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `src/shared.ts`  | Wire protocol (`Msg`), request tracking, and shard assignment math.                 |
+| `src/manager.ts` | `ClusterManager`: spawns clusters and talks to a bridge.                            |
+| `src/client.ts`  | `ClusterClient` and `getInfo()`, used inside a cluster process.                     |
+| `src/bridge.ts`  | `Bridge` for cross-host setups without Kubernetes.                                  |
+| `test/`          | Integration tests that spawn real cluster processes and a bridge.                   |
+| `operator/`      | Kubernetes operator in Go: controller, built-in bridge, and manifests in `config/`. |
+
+The TypeScript bridge and the Go bridge speak the same JSON protocol. If you change `Msg` in `src/shared.ts` or `assignment()`, change `operator/bridge.go` too. The assignment test cases are mirrored in `test/djshard.test.ts` and `operator/bridge_test.go`.
+
+## Checks
+
+Everything CI runs:
+
+```sh
+bun run ci          # oxlint, oxfmt --check, bun check (types), bun test, tsdown build
+cd operator && go vet ./... && go test ./...
+```
+
+Individual commands:
+
+| Command             | Does                                     |
+| ------------------- | ---------------------------------------- |
+| `bun run lint`      | Lint with oxlint.                        |
+| `bun run fmt`       | Format with oxfmt.                       |
+| `bun run typecheck` | Type-check with `bun check`.             |
+| `bun test`          | Run the tests.                           |
+| `bun run build`     | Build ESM, CJS and `.d.ts` into `dist/`. |
+
+Go code is formatted with `gofmt`.
+
+## Pull requests
+
+- Branch from `main`. Don't push to `main` directly.
+- Keep each change focused, and add a test when you change behavior.
+- Make sure `bun run ci` and `go test ./...` pass.
+- Describe what changed, why, and how you verified it.
+
+## Agent skills
+
+The repo pins skills for coding agents (Claude Code, Codex, ...) with the [skills CLI](https://github.com/vercel-labs/skills). `skills-lock.json` is committed. The installed copies in `.claude/skills` and `.agents/skills` are gitignored.
+
+| Source                                                        | Skills                                                            |
+| ------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [ro80t/hush](https://github.com/ro80t/hush)                   | `hush`, `hush-review`, `hush-fix`: comment and naming style.      |
+| [ro80t/github-skills](https://github.com/ro80t/github-skills) | `git-policy`, `open-pr`, `auto-commit-and-push`, `fix-coderabbit` |
+
+```sh
+bun run skills                          # install what skills-lock.json pins
+bunx skills add <owner/repo> --skill '*' # add a skill source (updates skills-lock.json)
+bunx skills update -p                   # update project skills
+bunx skills remove <name>               # remove one
+```
+
+Commit `skills-lock.json` whenever you change it.

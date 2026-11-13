@@ -1,4 +1,4 @@
-module github.com/djshard/djshard/operator
+module github.com/ro80t/djshard/operator
 
 go 1.26.5
 
