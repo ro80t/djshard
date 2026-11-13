@@ -20,12 +20,10 @@ text after the command as extra instructions.
 
 3. **Fetch the findings** (inline comments carry the per-file detail; the review body only
    has a summary):
-
    ```bash
    gh api repos/{owner}/{repo}/pulls/<PR>/comments --paginate --jq '.[] | select(.user.login=="coderabbitai[bot]") | {path, line, body}'
    gh api repos/{owner}/{repo}/pulls/<PR>/reviews --paginate --jq '.[] | select(.user.login=="coderabbitai[bot]") | .body'
    ```
-
    Save large output to a scratch file and read it from there. If the review body's
    "Actionable comments posted: N" doesn't match the inline comments fetched, look harder
    before concluding there's nothing left.

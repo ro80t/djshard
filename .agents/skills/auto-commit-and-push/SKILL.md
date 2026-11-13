@@ -29,7 +29,7 @@ instructions.
    `git commit` through that container. If that environment isn't running, say so — don't
    commit from the host and silently bypass the hook.
 
-   Write a concise message focused on _why_, matching the repo's existing style
+   Write a concise message focused on *why*, matching the repo's existing style
    (`git log` for examples). Append the co-author trailer your harness specifies, if any.
 
 4. **Push:** `git push origin <branch>` (add `-u` only if it has no upstream yet).

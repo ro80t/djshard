@@ -11,10 +11,10 @@ version: 1.0.0
 **Never run `git commit` or `git push` (or `gh pr create`/`gh pr merge`) unless the user's
 current message explicitly invokes one of these skills:**
 
-| Skill                | Claude Code             | Codex                   | Does                           |
-| -------------------- | ----------------------- | ----------------------- | ------------------------------ |
-| open-pr              | `/open-pr`              | `$open-pr`              | commit, push, open/update a PR |
-| auto-commit-and-push | `/auto-commit-and-push` | `$auto-commit-and-push` | commit and push only, no PR    |
+| Skill | Claude Code | Codex | Does |
+|---|---|---|---|
+| open-pr | `/open-pr` | `$open-pr` | commit, push, open/update a PR |
+| auto-commit-and-push | `/auto-commit-and-push` | `$auto-commit-and-push` | commit and push only, no PR |
 
 Plain-language approval is **not** enough — "commit and push this", "反映してください",
 "yes go ahead", "ship it" all count as plain language. When asked that way, do not act;
