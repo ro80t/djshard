@@ -1,6 +1,6 @@
 {
   "name": "djshard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Clustered + cross-host sharding for Discord bots on Bun, with a Kubernetes operator",
   "repository": {
     "type": "git",
