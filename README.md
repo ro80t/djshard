@@ -17,9 +17,14 @@ djshard is not tied to any Discord library. It tells each cluster which shards t
 
 ```sh
 bun add djshard
+# or
+npm install djshard
+pnpm add djshard
+yarn add djshard
 ```
 
-Both ESM (`import`) and CommonJS (`require`) builds are published.
+Both ESM (`import`) and CommonJS (`require`) builds are published. Any package manager can install it,
+but the code must run on Bun: it uses `Bun.spawn` and `Bun.serve`.
 
 ## Single machine
 
