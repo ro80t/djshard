@@ -1,0 +1,44 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: shardclusters.djshard.dev
+spec:
+  group: djshard.dev
+  scope: Namespaced
+  names:
+    kind: ShardCluster
+    listKind: ShardClusterList
+    plural: shardclusters
+    singular: shardcluster
+    shortNames: [shc]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - { name: Replicas, type: integer, jsonPath: .spec.replicas }
+        - { name: Shards, type: integer, jsonPath: .status.totalShards }
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [template]
+              properties:
+                replicas: { type: integer, minimum: 1, default: 1 }
+                totalShards: { type: integer, minimum: 0, default: 0, description: "0 = Discord recommended (needs tokenSecretRef)" }
+                shardsPerCluster: { type: integer, minimum: 1, default: 4 }
+                tokenSecretRef:
+                  type: object
+                  required: [name, key]
+                  properties:
+                    name: { type: string }
+                    key: { type: string }
+                template: { type: object, x-kubernetes-preserve-unknown-fields: true }
+            status:
+              type: object
+              properties:
+                totalShards: { type: integer }

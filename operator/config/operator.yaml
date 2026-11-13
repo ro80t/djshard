@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Namespace
+metadata: { name: djshard-system }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: djshard-operator, namespace: djshard-system }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: djshard-operator }
+rules:
+  - apiGroups: [djshard.dev]
+    resources: [shardclusters]
+    verbs: [get, list, watch]
+  - apiGroups: [djshard.dev]
+    resources: [shardclusters/status]
+    verbs: [get, update, patch]
+  - apiGroups: [apps]
+    resources: [statefulsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, create, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: djshard-operator }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: djshard-operator }
+subjects: [{ kind: ServiceAccount, name: djshard-operator, namespace: djshard-system }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: djshard-operator, namespace: djshard-system }
+spec:
+  selector: { app: djshard-operator }
+  ports: [{ name: bridge, port: 8080 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: djshard-operator, namespace: djshard-system }
+spec:
+  replicas: 1 # must stay 1: bot connections live in this process
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: djshard-operator } }
+  template:
+    metadata: { labels: { app: djshard-operator } }
+    spec:
+      serviceAccountName: djshard-operator
+      containers:
+        - name: operator
+          image: djshard-operator:latest
+          env:
+            - { name: BRIDGE_URL, value: ws://djshard-operator.djshard-system.svc:8080 }
+          ports: [{ containerPort: 8080 }]

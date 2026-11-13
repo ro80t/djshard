@@ -1,0 +1,14 @@
+apiVersion: djshard.dev/v1alpha1
+kind: ShardCluster
+metadata: { name: mybot }
+spec:
+  replicas: 3
+  shardsPerCluster: 4
+  # totalShards: 32   # omit to use Discord's recommendation
+  tokenSecretRef: { name: discord, key: token }
+  template:
+    spec:
+      containers:
+        - name: bot
+          image: mybot:latest
+          command: [bun, manager.ts]
