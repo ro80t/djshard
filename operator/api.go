@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-var groupVersion = schema.GroupVersion{Group: "djshard.dev", Version: "v1alpha1"}
+var groupVersion = schema.GroupVersion{Group: "djshard.ro80t.com", Version: "v1alpha1"}
 
 func addToScheme(s *runtime.Scheme) error {
 	s.AddKnownTypes(groupVersion, &ShardCluster{}, &ShardClusterList{})

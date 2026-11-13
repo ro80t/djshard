@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const label = "djshard.dev/cluster"
+const label = "djshard.ro80t.com/cluster"
 
 type reconciler struct {
 	client.Client
@@ -77,7 +77,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		// Any change to the shard layout reassigns every pod, so roll them all.
 		// ponytail: during the roll old and new pods may briefly own the same shard; Discord drops the older session.
-		tpl.Annotations["djshard.dev/layout"] = fmt.Sprintf("%d/%d/%d", total, sc.Spec.ShardsPerCluster, sc.Spec.Replicas)
+		tpl.Annotations["djshard.ro80t.com/layout"] = fmt.Sprintf("%d/%d/%d", total, sc.Spec.ShardsPerCluster, sc.Spec.Replicas)
 
 		c := &tpl.Spec.Containers[0]
 		c.Env = append(c.Env,

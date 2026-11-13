@@ -10,10 +10,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata: { name: djshard-operator }
 rules:
-  - apiGroups: [djshard.dev]
+  - apiGroups: [djshard.ro80t.com]
     resources: [shardclusters]
     verbs: [get, list, watch]
-  - apiGroups: [djshard.dev]
+  - apiGroups: [djshard.ro80t.com]
     resources: [shardclusters/status]
     verbs: [get, update, patch]
   - apiGroups: [apps]
@@ -49,7 +49,7 @@ spec:
       serviceAccountName: djshard-operator
       containers:
         - name: operator
-          image: djshard-operator:latest
+          image: ghcr.io/ro80t/djshard-operator:latest
           env:
             - { name: BRIDGE_URL, value: ws://djshard-operator.djshard-system.svc:8080 }
           ports: [{ containerPort: 8080 }]

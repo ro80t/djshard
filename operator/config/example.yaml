@@ -1,4 +1,4 @@
-apiVersion: djshard.dev/v1alpha1
+apiVersion: djshard.ro80t.com/v1alpha1
 kind: ShardCluster
 metadata: { name: mybot }
 spec:

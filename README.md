@@ -93,7 +93,7 @@ kubectl apply -f operator/config/example.yaml
 ```
 
 ```yaml
-apiVersion: djshard.dev/v1alpha1
+apiVersion: djshard.ro80t.com/v1alpha1
 kind: ShardCluster
 metadata: { name: mybot }
 spec:
@@ -118,7 +118,7 @@ For each `ShardCluster`, the operator:
 
 Your `manager.ts` is the same as in single-machine mode, because `ClusterManager` picks up the `DJSHARD_*` variables automatically.
 
-Build the operator image from `operator/Dockerfile`, and point the image in `operator/config/operator.yaml` at it.
+The operator image is published to `ghcr.io/ro80t/djshard-operator` (`latest` from `main`, plus a tag per `v*` release). To run your own build, build `operator/Dockerfile` and change the image in `operator/config/operator.yaml`.
 
 ## Limitations
 
