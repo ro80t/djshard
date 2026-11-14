@@ -89,8 +89,10 @@ export class Bridge {
 
   #onMessage(ws: ServerWebSocket<Machine>, m: Msg) {
     if (ws.data.slot < 0) {
-      if (m.t !== "hello" || typeof m.auth !== "string" || !safeEqual(m.auth, this.opts.auth))
+      if (m.t !== "hello" || typeof m.auth !== "string" || !safeEqual(m.auth, this.opts.auth)) {
+        send(ws, { t: "error", message: "unauthorized" });
         return ws.close(1008, "unauthorized");
+      }
       const prev = this.#sticky.get(m.name);
       const slot = prev !== undefined && !this.#slots[prev] ? prev : this.#slots.findIndex((s) => !s);
       if (slot < 0) {

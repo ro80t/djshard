@@ -42,8 +42,6 @@ test("cross-host broadcastEval, from manager and from inside a cluster", async (
 
 test("bad auth is rejected", async () => {
   const m = new ClusterManager(bot, { bridge: { url, auth: "nope" } });
-  const closed = new Promise((r) => m.once("debug", r));
-  m.spawn();
-  expect(await closed).toBe("bridge disconnected");
+  await expect(m.spawn()).rejects.toThrow("unauthorized");
   m.destroy();
 });
