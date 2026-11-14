@@ -134,22 +134,27 @@ export class ClusterManager extends EventEmitter {
 
   // Serialized so a reassignment arriving mid-spawn waits its turn.
   #apply(a: Assign, force = false): Promise<void> {
-    return (this.#queue = this.#queue.then(async () => {
-      const key = JSON.stringify(a);
-      if (key === this.#assignKey && !force) return;
-      this.#assignKey = key;
-      for (const c of this.clusters.values()) this.#stop(c);
-      this.clusters.clear();
-      this.totalShards = a.totalShards;
-      this.totalClusters = a.totalClusters;
-      for (const [i, { id, shards }] of a.clusters.entries()) {
-        if (this.#closed) return;
-        if (i > 0) await Bun.sleep(this.#opts.spawnDelay);
-        const c: Cluster = { id, shards, pending: new Pending(), stopped: false };
-        this.clusters.set(id, c);
-        this.#start(c);
-      }
-    }));
+    // A failed step must not poison the queue, or every later reassignment is skipped.
+    const run = this.#queue
+      .catch(() => {})
+      .then(async () => {
+        const key = JSON.stringify(a);
+        if (key === this.#assignKey && !force) return;
+        this.#assignKey = key;
+        for (const c of this.clusters.values()) this.#stop(c);
+        this.clusters.clear();
+        this.totalShards = a.totalShards;
+        this.totalClusters = a.totalClusters;
+        for (const [i, { id, shards }] of a.clusters.entries()) {
+          if (this.#closed) return;
+          if (i > 0) await Bun.sleep(this.#opts.spawnDelay);
+          const c: Cluster = { id, shards, pending: new Pending(), stopped: false };
+          this.clusters.set(id, c);
+          this.#start(c);
+        }
+      });
+    this.#queue = run;
+    return run;
   }
 
   #start(c: Cluster) {
@@ -203,7 +208,10 @@ export class ClusterManager extends EventEmitter {
     switch (m.t) {
       case "assign":
         this.#online = true;
-        this.#apply(m).then(() => this.emit("assigned"));
+        this.#apply(m).then(
+          () => this.emit("assigned"),
+          (e) => this.emit("rejected", e),
+        );
         break;
       case "eval":
         respond(
