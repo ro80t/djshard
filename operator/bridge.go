@@ -88,6 +88,9 @@ func (c *conn) request(m msg) (msg, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), evalTimeout)
 	defer cancel()
 	if err := wsjson.Write(ctx, c.ws, m); err != nil {
+		c.mu.Lock()
+		delete(c.pending, m.ID)
+		c.mu.Unlock()
 		return msg{}, err
 	}
 	select {

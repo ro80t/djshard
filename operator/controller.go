@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -80,6 +81,16 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		tpl.Annotations["djshard.ro80t.com/layout"] = fmt.Sprintf("%d/%d/%d", total, sc.Spec.ShardsPerCluster, sc.Spec.Replicas)
 
 		c := &tpl.Spec.Containers[0]
+		// Drop user entries we're about to set, so the pod never gets duplicate names.
+		c.Env = slices.DeleteFunc(c.Env, func(e corev1.EnvVar) bool {
+			switch e.Name {
+			case "DJSHARD_BRIDGE_URL", "DJSHARD_ID", "DJSHARD_AUTH":
+				return true
+			case "DISCORD_TOKEN":
+				return sc.Spec.TokenSecretRef != nil
+			}
+			return false
+		})
 		c.Env = append(c.Env,
 			corev1.EnvVar{Name: "DJSHARD_BRIDGE_URL", Value: fmt.Sprintf("%s/%s/%s", r.bridgeURL, sc.Namespace, sc.Name)},
 			corev1.EnvVar{Name: "DJSHARD_ID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
