@@ -194,7 +194,15 @@ export class ClusterManager extends EventEmitter {
     const b = this.#bridge!;
     const ws = (this.#ws = new WebSocket(b.url));
     ws.onopen = () => this.#send({ t: "hello", auth: b.auth, name: b.id });
-    ws.onmessage = (e) => this.#onBridge(JSON.parse(String(e.data)));
+    ws.onmessage = (e) => {
+      let m: Msg;
+      try {
+        m = JSON.parse(String(e.data));
+      } catch {
+        return this.emit("debug", "bridge sent bad json");
+      }
+      this.#onBridge(m);
+    };
     ws.onclose = () => {
       this.#online = false;
       this.#wsPending.rejectAll("bridge disconnected");
