@@ -30,6 +30,10 @@ are always fine.
 
 - Stage files by name. Never `git add -A` / `git add .`.
 - Check `git status` for secrets, `.env` files, and stray build output before committing.
+- If the repo uses Changesets (a `.changeset/` directory) and the change affects a published
+  package, add a changeset (`.changeset/<name>.md`) in the same commit. Skip it for changes
+  that don't need a release (docs, CI, tests only). If the bump would be `major`, ask the
+  user to confirm before committing.
 - Never force-push, amend published commits, or skip hooks (`--no-verify`) unless the user
   explicitly asks.
 - Never push directly to the default branch (`main`/`master`).
