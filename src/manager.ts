@@ -106,7 +106,10 @@ export class ClusterManager extends EventEmitter {
 
   /** Runs `script` on this machine's clusters only. */
   evalLocal(script: string, { context, cluster, timeout }: EvalOptions = {}): Promise<any[]> {
-    const targets = [...this.clusters.values()].filter((c) => cluster === undefined || c.id === cluster);
+    // Sorted by id: the operator bridge relies on this to merge results across pods.
+    const targets = [...this.clusters.values()]
+      .filter((c) => cluster === undefined || c.id === cluster)
+      .sort((a, b) => a.id - b.id);
     return Promise.all(
       targets.map((c) => {
         if (!c.proc || c.proc.killed) return Promise.reject(new Error(`cluster ${c.id} is not running`));
@@ -141,11 +144,20 @@ export class ClusterManager extends EventEmitter {
         const key = JSON.stringify(a);
         if (key === this.#assignKey && !force) return;
         this.#assignKey = key;
-        for (const c of this.clusters.values()) this.#stop(c);
+        // Same layout: keep clusters that are still ours, so a failover handoff doesn't restart them.
+        const sameLayout = !force && a.totalShards === this.totalShards && a.totalClusters === this.totalClusters;
+        const kept = new Map<number, Cluster>();
+        for (const c of this.clusters.values()) {
+          const want = a.clusters.find((x) => x.id === c.id);
+          if (sameLayout && want && String(want.shards) === String(c.shards)) kept.set(c.id, c);
+          else this.#stop(c);
+        }
         this.clusters.clear();
+        for (const [id, c] of kept) this.clusters.set(id, c);
         this.totalShards = a.totalShards;
         this.totalClusters = a.totalClusters;
-        for (const [i, { id, shards }] of a.clusters.entries()) {
+        const added = a.clusters.filter((x) => !kept.has(x.id));
+        for (const [i, { id, shards }] of added.entries()) {
           if (this.#closed) return;
           if (i > 0) await Bun.sleep(this.#opts.spawnDelay);
           const c: Cluster = { id, shards, pending: new Pending(), stopped: false };

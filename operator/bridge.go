@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -69,12 +70,36 @@ func ordinal(sts, pod string) (int, bool) {
 	return n, err == nil && n >= 0
 }
 
+type layout struct{ total, perCluster, replicas int }
+
 type conn struct {
 	ws      *websocket.Conn
 	slot    int
+	layout  layout
 	mu      sync.Mutex
 	next    int
 	pending map[int]chan msg
+
+	assign *msg // latest assignment, guarded by bridge.mu
+	wmu    sync.Mutex
+	sent   *msg // guarded by wmu
+}
+
+// push writes the latest assignment; concurrent pushes can't reorder because each sends whatever is newest.
+func (b *bridge) push(c *conn) {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	b.mu.Lock()
+	a := c.assign
+	b.mu.Unlock()
+	if a == nil || a == c.sent {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if wsjson.Write(ctx, c.ws, *a) == nil {
+		c.sent = a
+	}
 }
 
 func (c *conn) request(m msg) (msg, error) {
@@ -134,8 +159,18 @@ func (c *conn) failAll() {
 type bridge struct {
 	cache  client.Reader // ShardClusters
 	direct client.Reader // auth Secrets, read uncached
+	// A slot empty for this long has its clusters taken over by the other pods until its pod returns.
+	grace  time.Duration
 	mu     sync.Mutex
-	groups map[string]map[int]*conn
+	groups map[string]*group
+}
+
+// group is one ShardCluster's connected pods, keyed by slot (pod ordinal).
+type group struct {
+	layout layout // from the most recent hello
+	conns  map[int]*conn
+	lost   map[int]time.Time // empty slot -> since when
+	timer  *time.Timer
 }
 
 var errUnauthorized = errors.New("unauthorized")
@@ -157,7 +192,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil || hello.T != "hello" {
 		return
 	}
-	slot, assign, err := b.authorize(ctx, ns, name, hello)
+	slot, lay, err := b.authorize(ctx, ns, name, hello)
 	if err != nil {
 		if errors.Is(err, errUnauthorized) {
 			_ = wsjson.Write(ctx, ws, msg{T: "error", Message: err.Error()})
@@ -168,28 +203,30 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := ns + "/" + name
-	c := &conn{ws: ws, slot: slot, pending: map[int]chan msg{}}
+	c := &conn{ws: ws, slot: slot, layout: lay, pending: map[int]chan msg{}}
 	b.mu.Lock()
-	if b.groups[key] == nil {
-		b.groups[key] = map[int]*conn{}
+	g := b.groups[key]
+	if g == nil {
+		g = &group{conns: map[int]*conn{}, lost: map[int]time.Time{}}
+		b.groups[key] = g
 	}
-	if old := b.groups[key][slot]; old != nil {
+	g.layout = lay
+	if old := g.conns[slot]; old != nil {
 		old.ws.CloseNow() // same pod reconnecting; the old socket is dead
 	}
-	b.groups[key][slot] = c
+	g.conns[slot] = c
 	b.mu.Unlock()
+	b.rebalance(key)
 	defer func() {
 		b.mu.Lock()
-		if b.groups[key][slot] == c {
-			delete(b.groups[key], slot)
+		if g.conns[slot] == c {
+			delete(g.conns, slot)
 		}
 		b.mu.Unlock()
 		c.failAll()
+		b.rebalance(key)
 	}()
 
-	if err := wsjson.Write(ctx, ws, assign); err != nil {
-		return
-	}
 	for {
 		var m msg
 		if err := wsjson.Read(ctx, ws, &m); err != nil {
@@ -212,33 +249,97 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (b *bridge) authorize(ctx context.Context, ns, name string, hello msg) (int, msg, error) {
+func (b *bridge) authorize(ctx context.Context, ns, name string, hello msg) (int, layout, error) {
 	var sc ShardCluster
 	var secret corev1.Secret
 	if b.cache.Get(ctx, types.NamespacedName{Namespace: ns, Name: name}, &sc) != nil ||
 		b.direct.Get(ctx, types.NamespacedName{Namespace: ns, Name: authSecretName(name)}, &secret) != nil ||
 		subtle.ConstantTimeCompare(secret.Data["auth"], []byte(hello.Auth)) != 1 {
-		return 0, msg{}, errUnauthorized
+		return 0, layout{}, errUnauthorized
 	}
 	slot, ok := ordinal(sc.Name, hello.Name)
 	if !ok || slot >= int(sc.Spec.Replicas) {
-		return 0, msg{}, errors.New("pod is not part of this ShardCluster")
+		return 0, layout{}, errors.New("pod is not part of this ShardCluster")
 	}
 	if sc.Status.TotalShards == 0 {
-		return 0, msg{}, errors.New("shard count not resolved yet")
+		return 0, layout{}, errors.New("shard count not resolved yet")
 	}
-	return slot, assignment(sc.Status.TotalShards, sc.Spec.ShardsPerCluster, int(sc.Spec.Replicas), slot), nil
+	return slot, layout{sc.Status.TotalShards, sc.Spec.ShardsPerCluster, int(sc.Spec.Replicas)}, nil
+}
+
+// rebalance gives every pod its own slot's clusters plus a round-robin share of slots that have
+// had no pod for longer than b.grace, and pushes the assignments that changed.
+// Pods still on an older layout (mid-roll) keep what they have and only count as covering their slot.
+// ponytail: a pod cut off from the operator but still alive keeps its shards too, so both run them
+// until it reconnects; add self-fencing in ClusterManager if partitions turn out to be common.
+func (b *bridge) rebalance(key string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	g := b.groups[key]
+	l := g.layout
+	now := time.Now()
+	var orphans []int
+	wait := time.Duration(-1)
+	for s := range l.replicas {
+		if g.conns[s] != nil {
+			delete(g.lost, s)
+			continue
+		}
+		since, ok := g.lost[s]
+		if !ok {
+			since, g.lost[s] = now, now
+		}
+		if left := b.grace - now.Sub(since); left > 0 {
+			if wait < 0 || left < wait {
+				wait = left
+			}
+			continue
+		}
+		orphans = append(orphans, s)
+	}
+
+	var live []*conn
+	for _, c := range g.conns {
+		if c.layout == l {
+			live = append(live, c)
+		}
+	}
+	slices.SortFunc(live, func(a, b *conn) int { return a.slot - b.slot })
+	for i, c := range live {
+		a := assignment(l.total, l.perCluster, l.replicas, c.slot)
+		for j := i; j < len(orphans); j += len(live) {
+			a.Clusters = append(a.Clusters, assignment(l.total, l.perCluster, l.replicas, orphans[j]).Clusters...)
+		}
+		slices.SortFunc(a.Clusters, func(x, y clusterShards) int { return x.ID - y.ID })
+		if c.assign == nil || !reflect.DeepEqual(c.assign.Clusters, a.Clusters) {
+			c.assign = &a
+			go b.push(c)
+		}
+	}
+
+	if g.timer != nil {
+		g.timer.Stop()
+	}
+	if wait >= 0 {
+		g.timer = time.AfterFunc(wait, func() { b.rebalance(key) })
+	}
 }
 
 // broadcast runs an eval on every connected pod of the group and concatenates the results in slot order.
 func (b *bridge) broadcast(key string, m msg) (json.RawMessage, error) {
 	b.mu.Lock()
 	var conns []*conn
-	for _, c := range b.groups[key] {
+	for _, c := range b.groups[key].conns {
 		conns = append(conns, c)
 	}
-	b.mu.Unlock()
 	slices.SortFunc(conns, func(a, b *conn) int { return a.slot - b.slot })
+	owned := make([][]clusterShards, len(conns))
+	for i, c := range conns {
+		if c.assign != nil {
+			owned[i] = c.assign.Clusters
+		}
+	}
+	b.mu.Unlock()
 
 	parts := make([][]json.RawMessage, len(conns))
 	errs := make([]error, len(conns))
@@ -256,5 +357,30 @@ func (b *bridge) broadcast(key string, m msg) (json.RawMessage, error) {
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
-	return json.Marshal(slices.Concat(parts...))
+	return json.Marshal(byCluster(m.Cluster == nil, owned, parts))
+}
+
+// byCluster orders results by cluster id: after a failover a pod owns non-contiguous clusters,
+// so slot order is no longer cluster order. Each pod returns its results sorted by cluster id.
+// If a pod's count doesn't match what it owns (mid-reassignment, single-cluster eval), keep slot order.
+func byCluster(all bool, owned [][]clusterShards, parts [][]json.RawMessage) []json.RawMessage {
+	type res struct {
+		id   int
+		data json.RawMessage
+	}
+	var out []res
+	for i, p := range parts {
+		if !all || len(p) != len(owned[i]) {
+			return slices.Concat(parts...)
+		}
+		for j, d := range p {
+			out = append(out, res{owned[i][j].ID, d})
+		}
+	}
+	slices.SortFunc(out, func(a, b res) int { return a.id - b.id })
+	data := make([]json.RawMessage, len(out))
+	for i, r := range out {
+		data[i] = r.data
+	}
+	return data
 }
