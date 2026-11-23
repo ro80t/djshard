@@ -5,6 +5,7 @@ import (
 	"flag"
 	"net/http"
 	"os"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,6 +20,7 @@ import (
 func main() {
 	listen := flag.String("bridge-listen", ":8080", "bridge WebSocket listen address")
 	url := flag.String("bridge-url", os.Getenv("BRIDGE_URL"), "bridge URL as seen from bot pods")
+	grace := flag.Duration("failover-grace", 30*time.Second, "how long a pod may be gone before other pods take over its shards")
 	flag.Parse()
 	ctrl.SetLogger(zap.New())
 	log := ctrl.Log.WithName("djshard")
@@ -41,7 +43,7 @@ func main() {
 		Complete(&reconciler{Client: mgr.GetClient(), bridgeURL: *url}))
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /{ns}/{name}", &bridge{cache: mgr.GetClient(), direct: mgr.GetAPIReader(), groups: map[string]map[int]*conn{}})
+	mux.Handle("GET /{ns}/{name}", &bridge{cache: mgr.GetClient(), direct: mgr.GetAPIReader(), grace: *grace, groups: map[string]*group{}})
 	srv := &http.Server{Addr: *listen, Handler: mux}
 	must(mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		go func() { <-ctx.Done(); srv.Close() }()

@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -50,7 +52,7 @@ func TestBridge(t *testing.T) {
 		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "bot-djshard", Namespace: "ns"}, Data: map[string][]byte{"auth": []byte("s3cret")}},
 	).Build()
 	mux := http.NewServeMux()
-	mux.Handle("GET /{ns}/{name}", &bridge{cache: c, direct: c, groups: map[string]map[int]*conn{}})
+	mux.Handle("GET /{ns}/{name}", &bridge{cache: c, direct: c, grace: time.Minute, groups: map[string]*group{}})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ns/bot"
@@ -103,4 +105,102 @@ func TestBridge(t *testing.T) {
 	if r := <-res; r.ID != 7 || !r.OK || string(r.Data) != "[0,1,2,3]" {
 		t.Fatalf("eval result %+v %s", r, r.Data)
 	}
+}
+
+// fakePod is a ClusterManager stand-in that answers every eval with the cluster ids it owns.
+type fakePod struct {
+	ws      *websocket.Conn
+	mu      sync.Mutex
+	ids     []int
+	assigns chan []int
+	results chan msg
+}
+
+func TestFailover(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
+	_ = addToScheme(scheme)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		&ShardCluster{ObjectMeta: metav1.ObjectMeta{Name: "bot", Namespace: "ns"},
+			Spec:   ShardClusterSpec{Replicas: 4, ShardsPerCluster: 1},
+			Status: ShardClusterStatus{TotalShards: 8}},
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "bot-djshard", Namespace: "ns"}, Data: map[string][]byte{"auth": []byte("s3cret")}},
+	).Build()
+	mux := http.NewServeMux()
+	mux.Handle("GET /{ns}/{name}", &bridge{cache: c, direct: c, grace: 100 * time.Millisecond, groups: map[string]*group{}})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ns/bot"
+	ctx := context.Background()
+
+	connect := func(name string) *fakePod {
+		ws, _, err := websocket.Dial(ctx, url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = wsjson.Write(ctx, ws, msg{T: "hello", Name: name, Auth: "s3cret"})
+		p := &fakePod{ws: ws, assigns: make(chan []int, 8), results: make(chan msg, 1)}
+		go func() {
+			for {
+				var m msg
+				if wsjson.Read(ctx, ws, &m) != nil {
+					return
+				}
+				switch m.T {
+				case "assign":
+					ids := []int{}
+					for _, c := range m.Clusters {
+						ids = append(ids, c.ID)
+					}
+					p.mu.Lock()
+					p.ids = ids
+					p.mu.Unlock()
+					p.assigns <- ids
+				case "res":
+					p.results <- m
+				case "eval":
+					p.mu.Lock()
+					data, _ := json.Marshal(p.ids)
+					p.mu.Unlock()
+					_ = wsjson.Write(ctx, ws, msg{T: "res", ID: m.ID, OK: true, Data: data})
+				}
+			}
+		}()
+		return p
+	}
+	expect := func(p *fakePod, want ...int) {
+		t.Helper()
+		select {
+		case got := <-p.assigns:
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("assign = %v, want %v", got, want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("no assign, want %v", want)
+		}
+	}
+
+	pods := make([]*fakePod, 4)
+	for i := range pods {
+		pods[i] = connect("bot-" + string(rune('0'+i)))
+		expect(pods[i], 2*i, 2*i+1)
+	}
+
+	// Pods 0 and 1 die; after the grace period pods 2 and 3 take one orphan slot each.
+	pods[0].ws.CloseNow()
+	pods[1].ws.CloseNow()
+	expect(pods[2], 0, 1, 4, 5)
+	expect(pods[3], 2, 3, 6, 7)
+
+	// Results come back in cluster order even though pods own non-contiguous clusters.
+	_ = wsjson.Write(ctx, pods[2].ws, msg{T: "eval", ID: 1, Script: "c => c"})
+	if r := <-pods[2].results; string(r.Data) != "[0,1,2,3,4,5,6,7]" {
+		t.Fatalf("eval result %s", r.Data)
+	}
+
+	// Pod 0 returns: it gets its slot back right away and adopts slot 1, the lowest live slot's turn.
+	pods[0] = connect("bot-0")
+	expect(pods[0], 0, 1, 2, 3)
+	expect(pods[2], 4, 5)
+	expect(pods[3], 6, 7)
 }

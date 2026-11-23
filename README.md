@@ -119,6 +119,7 @@ For each `ShardCluster`, the operator:
 - creates a StatefulSet and a Secret holding a random bridge token,
 - injects `DJSHARD_BRIDGE_URL`, `DJSHARD_AUTH`, `DJSHARD_ID` and `DISCORD_TOKEN` into the first container,
 - serves the bridge itself and assigns shards by pod ordinal (`mybot-2` gets slot 2),
+- fails over: when a pod has been disconnected for 30 seconds (operator flag `--failover-grace`), its clusters are spread over the remaining pods; when it reconnects it gets them back. Pods only start and stop the clusters that changed hands,
 - rolls every pod when `replicas`, `totalShards` or `shardsPerCluster` changes.
 
 Your `manager.ts` is the same as in single-machine mode, because `ClusterManager` picks up the `DJSHARD_*` variables automatically.
@@ -129,6 +130,8 @@ The operator image is published to `ghcr.io/ro80t/djshard-operator` with every r
 
 - Run the operator as a single replica. Bot connections live in its memory.
 - During a rolling restart, an old pod and a new pod can briefly own the same shard. Discord drops the older session.
+- Failover assumes a disconnected pod is dead. A pod that is alive but cut off from the operator keeps running its shards while another pod takes them over.
+- The standalone `Bridge` (without Kubernetes) does not fail over.
 - Bridge traffic is plain WebSocket protected only by the shared token. Keep it inside the cluster or private network.
 - A cluster that hangs without exiting is not detected (there is no heartbeat).
 - Identify rate limits (`max_concurrency`) are only respected within one machine, through `spawnDelay`.
